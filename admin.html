@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบป้องกันการโกงออนไลน์ - Admin</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="index.html">Anti-Fraud System</a>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto" id="nav-links"></ul>
+            </div>
+        </div>
+    </nav>
+    
+    <div class="container mt-5 mb-5" id="app-content">
+        <div id="adminAlert" class="alert d-none"></div>
+        <div class="row mb-5">
+            <div class="col-12">
+                <h3 class="mb-3 fw-bold">Admin Dashboard - จัดการสิทธิ์ผู้ใช้</h3>
+                <div class="table-responsive bg-white rounded shadow-sm p-3">
+                    <table class="table table-bordered align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>ID</th>
+                                <th>ชื่อ</th>
+                                <th>เบอร์โทรศัพท์</th>
+                                <th>สิทธิ์ปัจจุบัน</th>
+                                <th>จัดการสิทธิ์</th>
+                            </tr>
+                        </thead>
+                        <tbody id="userTableBody">
+                            <tr>
+                                <td colspan="5" class="text-center text-muted">กำลังโหลดข้อมูล...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-12">
+                <h3 class="mb-3 fw-bold">ตรวจสอบและจัดการเคสแจ้งเบาะแส</h3>
+                <div class="table-responsive bg-white rounded shadow-sm p-3">
+                    <table class="table table-bordered align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>ID</th>
+                                <th>ผู้ต้องสงสัย</th>
+                                <th>เบอร์โทร / เลขบัญชี</th>
+                                <th>ความเสียหาย</th>
+                                <th>รายละเอียด</th>
+                                <th>หลักฐาน</th>
+                                <th>สถานะ</th>
+                                <th>การดำเนินการ</th>
+                            </tr>
+                        </thead>
+                        <tbody id="reportsTableBody">
+                            <tr>
+                                <td colspan="8" class="text-center text-muted">กำลังโหลดข้อมูล...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            loadAdminData();
+        });
+
+        async function loadAdminData() {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                alert('กรุณาเข้าสู่ระบบก่อน');
+                window.location.href = 'login.html';
+                return;
+            }
+            try {
+                const resUsers = await fetch('/api/admin/users', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (resUsers.ok) {
+                    const users = await resUsers.json();
+                    renderUsers(users);
+                }
+            } catch (err) {
+                console.error('Error fetching users:', err);
+            }
+            try {
+                const resReports = await fetch('/api/admin/reports', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (resReports.ok) {
+                    const reports = await resReports.json();
+                    renderReports(reports);
+                }
+            } catch (err) {
+                console.error('Error fetching reports:', err);
+            }
+        }
+        function renderUsers(users) {
+            const tbody = document.getElementById('userTableBody');
+            if (!users || users.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">ไม่พบข้อมูลผู้ใช้งาน</td></tr>';
+                return;
+            }
+            tbody.innerHTML = users.map(u => `
+                <tr>
+                    <td>${u.id}</td>
+                    <td>${u.name}</td>
+                    <td>${u.phone}</td>
+                    <td><span class="badge ${u.role === 'admin' ? 'bg-danger' : 'bg-secondary'}">${u.role}</span></td>
+                    <td>
+                        <button class="btn btn-sm ${u.role === 'admin' ? 'btn-outline-secondary' : 'btn-outline-danger'}" 
+                                onclick="toggleRole(${u.id}, '${u.role === 'admin' ? 'user' : 'admin'}')">
+                            เปลี่ยนเป็น ${u.role === 'admin' ? 'User' : 'Admin'}
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function renderReports(reports) {
+            const tbody = document.getElementById('reportsTableBody');
+            if (!reports || reports.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">ยังไม่มีข้อมูลการแจ้งเบาะแส</td></tr>';
+                return;
+            }
+            tbody.innerHTML = reports.map(r => `
+                <tr>
+                    <td>${r.id}</td>
+                    <td><strong>${r.suspect_name}</strong></td>
+                    <td>${r.suspect_phone || '-'} <br> <small class="text-muted">${r.bank_account || '-'}</small></td>
+                    <td class="text-danger fw-bold">${r.damage_amount ? r.damage_amount.toLocaleString() + ' บาท' : '0 บาท'}</td>
+                    <td>${r.details || '-'}</td>
+                    <td>
+                        ${r.evidence_path 
+                            ? `<a href="/uploads/${r.evidence_path}" target="_blank" class="btn btn-sm btn-info text-white">ดูหลักฐาน</a>` 
+                            : '<span class="text-muted">ไม่มี</span>'}
+                    </td>
+                    <td>
+                        <span class="badge ${r.status === 'approved' ? 'bg-success' : r.status === 'rejected' ? 'bg-secondary' : 'bg-warning text-dark'}">
+                            ${r.status === 'approved' ? 'อนุมัติแล้ว' : r.status === 'rejected' ? 'ไม่อนุมัติ' : 'รอดำเนินการ'}
+                        </span>
+                    </td>
+                    <td>
+                        <div class="btn-group btn-group-sm" role="group">
+                            <button class="btn btn-success" onclick="updateStatus(${r.id}, 'approved')">อนุมัติ</button>
+                            <button class="btn btn-warning text-dark" onclick="updateStatus(${r.id}, 'rejected')">ปฏิเสธ</button>
+                            <button class="btn btn-danger" onclick="deleteReport(${r.id})">ลบ</button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        async function toggleRole(userId, newRole) {
+            const token = localStorage.getItem('token');
+            if (!confirm(`คุณต้องการเปลี่ยนสิทธิ์ผู้ใช้งานนี้เป็น ${newRole} หรือไม่?`)) return;
+
+            try {
+                const res = await fetch(`/api/admin/users/${userId}/role`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ role: newRole })
+                });
+                if (res.ok) loadAdminData();
+            } catch (err) {
+                console.error(err);
+            }
+        }
+        async function updateStatus(reportId, newStatus) {
+            const token = localStorage.getItem('token');
+            try {
+                const res = await fetch(`/api/admin/reports/${reportId}/status`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ status: newStatus })
+                });
+                if (res.ok) loadAdminData();
+            } catch (err) {
+                console.error(err);
+            }
+        }
+        async function deleteReport(reportId) {
+            const token = localStorage.getItem('token');
+            if (!confirm('คุณแน่ใจหรือไม่ว่าต้องการลบรายการแจ้งเบาะแสนี้?')) return;
+
+            try {
+                const res = await fetch(`/api/admin/reports/${reportId}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (res.ok) loadAdminData();
+            } catch (err) {
+                console.error(err);
+            }
+        }
+    </script>
+</body>
+</html>
