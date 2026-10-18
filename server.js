@@ -53,8 +53,11 @@ function isAdmin(req, res, next) {
 app.post('/api/register', (req, res) => {
     const { name, phone, password } = req.body;
     db.run(
-        `INSERT INTO Users (name, phone, password) VALUES (?, ?, ?)`,
-        [name, phone, password],
+        `INSERT INTO Users (name, phone, password, role) VALUES (?, ?, ?, ?)`,
+[name, phone, password,
+    process.env.ADMIN_PHONE && phone === process.env.ADMIN_PHONE
+        ? 'admin' : 'user'
+],
         function (err) {
             if (err) {
                 console.error('Register Error:', err.message);
